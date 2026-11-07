@@ -6,7 +6,6 @@ import {
   deleteDoc,
   onSnapshot,
   writeBatch,
-  getDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ProjectItem } from '../types';
@@ -18,9 +17,59 @@ export interface FirebaseSettingData {
   lastUpdated: string;
 }
 
-// Generate a deterministic and clean document ID
-function generateDocId(name: string, project: string, index: number): string {
+export const INITIAL_FALLBACK_PROJECTS: ProjectItem[] = [
+  { id: 'E001', name: "P'Sith", role: 'ผู้จัดการ', project: 'CUGM CRTT', price: 5000000, status: 'กำลังดำเนินการ' },
+  { id: 'E002', name: 'Top', role: 'Project Engineer', project: 'KTC', price: 250000, status: 'เสร็จ' },
+  { id: 'E002', name: 'Top', role: 'Project Engineer', project: 'การบินไทย AP', price: 170000, status: 'กำลังดำเนินการ' },
+  { id: 'E002', name: 'Top', role: 'Project Engineer', project: 'Toyota อับดุล', price: 1454040, status: 'เสร็จ' },
+  { id: 'E002', name: 'Top', role: 'Project Engineer', project: 'ซีคอน', price: 25800, status: 'เสร็จ' },
+  { id: 'E003', name: 'Nu', role: 'Project Engineer', project: 'KAT', price: 500000, status: 'กำลังดำเนินการ' },
+  { id: 'E003', name: 'Nu', role: 'Project Engineer', project: 'มาริลี่', price: 500000, status: 'กำลังดำเนินการ' },
+  { id: 'E003', name: 'Nu', role: 'Project Engineer', project: 'โกเบลโก้', price: 500000, status: 'กำลังดำเนินการ' },
+  { id: 'E004', name: 'Benz', role: 'Project Engineer', project: 'D.I.Y', price: 500000, status: 'กำลังดำเนินการ' },
+  { id: 'E005', name: 'Kosol', role: 'Project Engineer', project: 'ฤทธา office', price: 689785, status: 'เสนอราคา' },
+  { id: 'E005', name: 'Kosol', role: 'Project Engineer', project: 'ฤทธา AP', price: 308120, status: 'เสนอราคา' },
+  { id: 'E005', name: 'Kosol', role: 'Project Engineer', project: 'GEM แกลอรี่', price: 200000, status: 'เสนอราคา' },
+  { id: 'E005', name: 'Kosol', role: 'Project Engineer', project: 'BankX', price: 65000, status: 'เสนอราคา' },
+];
+
+// Generate clean zero-padded document IDs (e.g., proj_01, proj_02)
+function generateDocId(index: number): string {
   return `proj_${String(index + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Fetch projects directly from Firestore collection
+ */
+export async function getProjectsFromFirestore(): Promise<ProjectItem[]> {
+  const path = 'projects';
+  try {
+    const colRef = collection(db, path);
+    const snap = await getDocs(colRef);
+    if (snap.empty) {
+      return [];
+    }
+
+    const items: ProjectItem[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data && data.name && data.project) {
+        items.push({
+          id: data.id || '',
+          name: data.name || '',
+          role: data.role || '',
+          project: data.project || '',
+          price: typeof data.price === 'number' ? data.price : Number(data.price) || 0,
+          status: data.status || 'กำลังดำเนินการ',
+        });
+      }
+    });
+
+    return items;
+  } catch (error) {
+    console.warn('Could not read from Firestore, falling back to local cache:', error);
+    return [];
+  }
 }
 
 /**
@@ -39,20 +88,22 @@ export function subscribeToProjects(
       const items: ProjectItem[] = [];
       snapshot.forEach((d) => {
         const data = d.data();
-        items.push({
-          id: data.id || '',
-          name: data.name || '',
-          role: data.role || '',
-          project: data.project || '',
-          price: typeof data.price === 'number' ? data.price : Number(data.price) || 0,
-          status: data.status || 'กำลังดำเนินการ',
-        });
+        if (data && data.name && data.project) {
+          items.push({
+            id: data.id || '',
+            name: data.name || '',
+            role: data.role || '',
+            project: data.project || '',
+            price: typeof data.price === 'number' ? data.price : Number(data.price) || 0,
+            status: data.status || 'กำลังดำเนินการ',
+          });
+        }
       });
       onData(items);
     },
     (error) => {
+      console.warn('Firestore onSnapshot warning:', error);
       if (onError) onError(error);
-      handleFirestoreError(error, OperationType.GET, path);
     }
   );
 
@@ -64,6 +115,8 @@ export function subscribeToProjects(
  */
 export async function syncProjectsToFirestore(projects: ProjectItem[]): Promise<void> {
   const path = 'projects';
+  if (!projects || projects.length === 0) return;
+
   try {
     const colRef = collection(db, path);
     const existingSnap = await getDocs(colRef);
@@ -73,7 +126,7 @@ export async function syncProjectsToFirestore(projects: ProjectItem[]): Promise<
     const newDocIds = new Set<string>();
 
     projects.forEach((item, index) => {
-      const docId = generateDocId(item.name, item.project, index);
+      const docId = generateDocId(index);
       newDocIds.add(docId);
       const docRef = doc(db, path, docId);
       batch.set(
@@ -91,7 +144,7 @@ export async function syncProjectsToFirestore(projects: ProjectItem[]): Promise<
       );
     });
 
-    // Delete removed docs to stay synchronized
+    // Delete obsolete docs
     existingDocIds.forEach((oldId) => {
       if (!newDocIds.has(oldId)) {
         batch.delete(doc(db, path, oldId));
@@ -100,7 +153,8 @@ export async function syncProjectsToFirestore(projects: ProjectItem[]): Promise<
 
     await batch.commit();
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.error('Failed to sync projects into Firestore:', error);
+    // Don't crash the client on write failure
   }
 }
 
@@ -122,7 +176,7 @@ export function subscribeToSettings(
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, `${path}/config`);
+      console.warn('Settings subscription warning:', error);
     }
   );
 }
@@ -136,7 +190,7 @@ export async function saveSettingsToFirestore(settings: Partial<FirebaseSettingD
     const docRef = doc(db, path, 'config');
     await setDoc(docRef, { ...settings, updatedAt: new Date().toISOString() }, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `${path}/config`);
+    console.error('Failed to save settings to Firestore:', error);
   }
 }
 
@@ -149,7 +203,6 @@ export async function isProjectsCollectionEmpty(): Promise<boolean> {
     const snap = await getDocs(collection(db, path));
     return snap.empty;
   } catch (error) {
-    console.warn('Could not check if Firestore is empty:', error);
     return true;
   }
 }
