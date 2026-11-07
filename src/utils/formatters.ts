@@ -87,3 +87,67 @@ export function getStatusStyle(status: string): {
     label: 'กำลังดำเนินการ',
   };
 }
+
+export function computeStatsAndEmployees(rows: Array<{
+  id: string;
+  name: string;
+  role: string;
+  project: string;
+  price: number;
+  status: string;
+}>) {
+  const employeeMap = new Map<string, {
+    id: string;
+    name: string;
+    role: string;
+    projects: Array<{ project: string; price: number; status: string }>;
+    totalValue: number;
+  }>();
+
+  for (const item of rows) {
+    const key = item.name || 'ไม่ระบุชื่อ';
+    if (!employeeMap.has(key)) {
+      employeeMap.set(key, {
+        id: item.id || '',
+        name: key,
+        role: item.role || 'ทีมงาน',
+        projects: [],
+        totalValue: 0,
+      });
+    }
+    const emp = employeeMap.get(key)!;
+    emp.projects.push({
+      project: item.project,
+      price: item.price,
+      status: item.status,
+    });
+    emp.totalValue += item.price;
+  }
+
+  const employees = Array.from(employeeMap.values());
+
+  const uniqueProjects = new Map<string, number>();
+  for (const item of rows) {
+    if (!uniqueProjects.has(item.project)) {
+      uniqueProjects.set(item.project, item.price);
+    }
+  }
+
+  const totalValue = Array.from(uniqueProjects.values()).reduce((sum, p) => sum + p, 0);
+
+  return {
+    employees,
+    stats: {
+      totalEmployees: employees.length,
+      totalProjects: uniqueProjects.size,
+      totalAssignments: rows.length,
+      totalValue,
+      statusCounts: {
+        ongoing: rows.filter((r) => r.status.includes('ดำเนิน')).length,
+        completed: rows.filter((r) => r.status.includes('เสร็จ') || r.status.toLowerCase().includes('done')).length,
+        proposal: rows.filter((r) => r.status.includes('เสนอ') || r.status.toLowerCase().includes('proposal')).length,
+      },
+    },
+  };
+}
+

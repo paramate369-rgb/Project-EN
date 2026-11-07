@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "Project assignment and status for office dashboard",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Employee ID or assignment identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Employee Name"
+        },
+        "role": {
+          "type": "string",
+          "description": "Employee Role / Position"
+        },
+        "project": {
+          "type": "string",
+          "description": "Project Name"
+        },
+        "price": {
+          "type": "number",
+          "description": "Project Value / Budget in THB"
+        },
+        "status": {
+          "type": "string",
+          "description": "Project Status"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["name", "project", "price", "status"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Dashboard configuration and synchronization settings",
+      "type": "object",
+      "properties": {
+        "sheetUrl": {
+          "type": "string",
+          "description": "Connected Google Sheets link"
+        },
+        "syncInterval": {
+          "type": "number",
+          "description": "Auto sync interval in seconds"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Timestamp of last sync"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": {
+        "$ref": "#/entities/Project"
+      },
+      "description": "Stores individual project assignments and budgets"
+    },
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/Setting"
+      },
+      "description": "Stores dashboard global configuration such as Google Sheet URL"
+    }
+  }
+}

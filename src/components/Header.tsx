@@ -38,11 +38,18 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          ภาพรวมทีมและโครงการที่แต่ละคนรับผิดชอบ · ซิงก์ข้อมูลอัตโนมัติจาก Google Sheets
+          ภาพรวมทีมและโครงการที่แต่ละคนรับผิดชอบ · จัดเก็บข้อมูลบน Firebase ({'wlprojectsum'})
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
+        {/* Firebase Cloud Database Badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50/70 border border-amber-200/90 rounded-xl text-xs text-amber-900 shadow-xs" title="เชื่อมต่อกับ Firebase Firestore: wlprojectsum">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+          <span className="font-semibold">Firebase:</span>
+          <span className="font-mono text-amber-950 font-bold">wlprojectsum</span>
+        </div>
+
         {/* Real-time Status Badge */}
         <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs shadow-xs">
           <div className="flex items-center gap-1.5">
@@ -56,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             />
             <span className="font-medium text-slate-700">
-              {errorMessage ? 'ข้อมูลสำรอง' : source === 'google_sheets' ? 'Google Sheet สด' : 'ข้อมูลระบบ'}
+              {source === 'google_sheets' ? 'Google Sheet สด' : 'คลาวด์ Firestore'}
             </span>
           </div>
 

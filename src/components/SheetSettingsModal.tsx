@@ -77,10 +77,10 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-bold text-[#243247]">
-              ตั้งค่าการเชื่อมต่อ Google Sheets
+              ตั้งค่าการเชื่อมต่อ Google Sheets & Firebase
             </h3>
             <p className="text-xs text-slate-500">
-              นำเข้าข้อมูลจาก Google Sheets แบบอัตโนมัติและอัปเดตแบบเรียลไทม์
+              จัดเก็บข้อมูลบน Firebase Firestore (<span className="font-semibold text-amber-700">wlprojectsum</span>) พร้อมซิงก์เรียลไทม์
             </p>
           </div>
         </div>

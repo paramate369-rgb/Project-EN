@@ -5,11 +5,16 @@ import { OfficeFloor } from './components/OfficeFloor';
 import { ProjectTable } from './components/ProjectTable';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { DashboardApiResponse, Employee, ProjectItem, DashboardStats } from './types';
-import { AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
-
-const STORAGE_KEY_URL = 'office_dashboard_sheet_url';
-const STORAGE_KEY_INTERVAL = 'office_dashboard_interval';
-const STORAGE_KEY_AUTOSYNC = 'office_dashboard_autosync';
+import { computeStatsAndEmployees } from './utils/formatters';
+import {
+  subscribeToProjects,
+  syncProjectsToFirestore,
+  subscribeToSettings,
+  saveSettingsToFirestore,
+  isProjectsCollectionEmpty,
+} from './services/firestoreService';
+import { testFirestoreConnection, firebaseProjectInfo } from './firebase';
+import { AlertCircle, RefreshCw, CheckCircle2, Database } from 'lucide-react';
 
 const INITIAL_STATS: DashboardStats = {
   totalEmployees: 0,
@@ -24,21 +29,12 @@ const INITIAL_STATS: DashboardStats = {
 };
 
 export default function App() {
-  const [data, setData] = useState<{
-    employees: Employee[];
-    rows: ProjectItem[];
-    stats: DashboardStats;
-    source: 'google_sheets' | 'local_file';
-    lastUpdated: string;
-    errorMessage: string | null;
-  }>({
-    employees: [],
-    rows: [],
-    stats: INITIAL_STATS,
-    source: 'local_file',
-    lastUpdated: new Date().toISOString(),
-    errorMessage: null,
-  });
+  const [rows, setRows] = useState<ProjectItem[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [stats, setStats] = useState<DashboardStats>(INITIAL_STATS);
+  const [source, setSource] = useState<'google_sheets' | 'local_file'>('local_file');
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toISOString());
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFetching, setIsFetching] = useState<boolean>(false);
@@ -46,26 +42,18 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Real-time Settings
-  const [sheetUrl, setSheetUrl] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEY_URL) || '';
-  });
-  const [syncInterval, setSyncInterval] = useState<number>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_INTERVAL);
-    return saved ? Number(saved) : 15;
-  });
-  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_AUTOSYNC);
-    return saved !== null ? saved === 'true' : true;
-  });
+  // Firestore Synced Settings
+  const [sheetUrl, setSheetUrl] = useState<string>('');
+  const [syncInterval, setSyncInterval] = useState<number>(15);
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(true);
 
-  const [countdown, setCountdown] = useState<number>(syncInterval);
+  const [countdown, setCountdown] = useState<number>(15);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitializedFromRemoteRef = useRef<boolean>(false);
 
-  // Show a temporary toast
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
@@ -73,11 +61,19 @@ export default function App() {
     }, 4000);
   };
 
-  // Fetch Dashboard Data from backend (which fetches Google Sheets or local project file)
-  const fetchData = useCallback(
-    async (customUrl?: string, isManual = false) => {
+  // Helper to recompute and set state from any project rows
+  const applyProjectRows = useCallback((newRows: ProjectItem[]) => {
+    setRows(newRows);
+    const { employees: newEmps, stats: newStats } = computeStatsAndEmployees(newRows);
+    setEmployees(newEmps);
+    setStats(newStats);
+  }, []);
+
+  // Fetch fresh data from backend (Google Sheets or fallback) and sync into Firestore
+  const fetchAndSyncToFirestore = useCallback(
+    async (targetSheetUrl?: string, isManual = false) => {
       setIsFetching(true);
-      const urlToFetch = customUrl !== undefined ? customUrl : sheetUrl;
+      const urlToFetch = targetSheetUrl !== undefined ? targetSheetUrl : sheetUrl;
 
       try {
         const queryParams = new URLSearchParams();
@@ -92,27 +88,29 @@ export default function App() {
 
         const json: DashboardApiResponse = await res.json();
 
-        if (json.success) {
-          setData({
-            employees: json.employees || [],
-            rows: json.rawRows || [],
-            stats: json.stats || INITIAL_STATS,
-            source: json.source,
-            lastUpdated: json.lastUpdated || new Date().toISOString(),
-            errorMessage: json.errorMessage || null,
-          });
+        if (json.success && json.rawRows && json.rawRows.length > 0) {
+          setSource(json.source);
+          setLastUpdated(json.lastUpdated || new Date().toISOString());
+          setErrorMessage(json.errorMessage || null);
+
+          // Save directly into Firebase Firestore in wlprojectsum!
+          await syncProjectsToFirestore(json.rawRows);
+
+          // In case Firestore listener is delayed, also update local state immediately
+          applyProjectRows(json.rawRows);
 
           if (isManual) {
-            showToast('อัปเดตข้อมูลล่าสุดเรียบร้อยแล้ว', 'success');
+            showToast('อัปเดตและบันทึกข้อมูลลง Firebase เรียบร้อยแล้ว', 'success');
           }
           return true;
         } else {
+          setErrorMessage(json.errorMessage || 'ไม่พบข้อมูลโครงการ');
           showToast(json.errorMessage || 'เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
           return false;
         }
       } catch (err: any) {
-        console.error('Error fetching dashboard data:', err);
-        showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อดึงข้อมูลได้', 'error');
+        console.error('Error in fetchAndSyncToFirestore:', err);
+        showToast('ไม่สามารถเชื่อมต่อเพื่อดึงข้อมูลได้', 'error');
         return false;
       } finally {
         setIsLoading(false);
@@ -120,13 +118,58 @@ export default function App() {
         setCountdown(syncInterval);
       }
     },
-    [sheetUrl, syncInterval]
+    [sheetUrl, syncInterval, applyProjectRows]
   );
 
-  // Initial load
+  // Firestore Real-time subscriptions & Initial Bootstrap
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    testFirestoreConnection();
+
+    // 1. Subscribe to Firestore settings
+    const unsubSettings = subscribeToSettings((settings) => {
+      if (settings.sheetUrl !== undefined) {
+        setSheetUrl(settings.sheetUrl);
+      }
+      if (settings.syncInterval) {
+        setSyncInterval(settings.syncInterval);
+      }
+      if (settings.lastUpdated) {
+        setLastUpdated(settings.lastUpdated);
+      }
+    });
+
+    // 2. Subscribe to Firestore projects
+    const unsubProjects = subscribeToProjects(
+      (firestoreProjects) => {
+        if (firestoreProjects.length > 0) {
+          applyProjectRows(firestoreProjects);
+          setIsLoading(false);
+        } else {
+          // If Firestore is empty on first run, seed it from initial data
+          if (!hasInitializedFromRemoteRef.current) {
+            hasInitializedFromRemoteRef.current = true;
+            fetchAndSyncToFirestore(sheetUrl, false);
+          }
+        }
+      },
+      (error) => {
+        console.error('Firestore subscription error:', error);
+      }
+    );
+
+    // Initial check if Firestore is empty
+    isProjectsCollectionEmpty().then((empty) => {
+      if (empty && !hasInitializedFromRemoteRef.current) {
+        hasInitializedFromRemoteRef.current = true;
+        fetchAndSyncToFirestore('', false);
+      }
+    });
+
+    return () => {
+      unsubSettings();
+      unsubProjects();
+    };
+  }, []);
 
   // Real-time Countdown & Polling Loop
   useEffect(() => {
@@ -140,8 +183,8 @@ export default function App() {
     countdownTimerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          // Trigger refresh
-          fetchData();
+          // Trigger refresh and sync to Firestore
+          fetchAndSyncToFirestore();
           return syncInterval;
         }
         return prev - 1;
@@ -151,38 +194,37 @@ export default function App() {
     return () => {
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     };
-  }, [syncInterval, isAutoSyncEnabled, fetchData]);
+  }, [syncInterval, isAutoSyncEnabled, fetchAndSyncToFirestore]);
 
-  // Save Settings from modal
+  // Save Settings from modal to Firestore
   const handleSaveSettings = async (newUrl: string, newInterval: number, newAutoSync: boolean) => {
-    const success = await fetchData(newUrl, true);
+    const success = await fetchAndSyncToFirestore(newUrl, true);
     if (success) {
       setSheetUrl(newUrl);
       setSyncInterval(newInterval);
       setIsAutoSyncEnabled(newAutoSync);
 
-      localStorage.setItem(STORAGE_KEY_URL, newUrl);
-      localStorage.setItem(STORAGE_KEY_INTERVAL, String(newInterval));
-      localStorage.setItem(STORAGE_KEY_AUTOSYNC, String(newAutoSync));
-
-      // Also notify backend
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheetUrl: newUrl, interval: newInterval }),
-      }).catch(console.error);
+      // Save settings to Firebase Firestore
+      await saveSettingsToFirestore({
+        sheetUrl: newUrl,
+        syncInterval: newInterval,
+        lastUpdated: new Date().toISOString(),
+      });
 
       return true;
     }
     return false;
   };
 
-  // Reset to default sample file
+  // Reset to default sample dataset in Firestore
   const handleResetToDefault = async () => {
     setSheetUrl('');
-    localStorage.removeItem(STORAGE_KEY_URL);
-    await fetchData('', true);
-    showToast('รีเซ็ตกลับมาใช้ข้อมูลต้นฉบับเรียบร้อยแล้ว', 'success');
+    await saveSettingsToFirestore({
+      sheetUrl: '',
+      lastUpdated: new Date().toISOString(),
+    });
+    await fetchAndSyncToFirestore('', true);
+    showToast('รีเซ็ตกลับมาใช้ข้อมูลต้นฉบับบน Firebase เรียบร้อยแล้ว', 'success');
   };
 
   return (
@@ -207,11 +249,11 @@ export default function App() {
         )}
 
         {/* Global Error Notice if any */}
-        {data.errorMessage && (
+        {errorMessage && (
           <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>{data.errorMessage} (กำลังแสดงข้อมูลสำรองล่าสุดในระบบ)</span>
+              <span>{errorMessage} (กำลังแสดงข้อมูลล่าสุดจาก Firebase)</span>
             </div>
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -222,29 +264,31 @@ export default function App() {
           </div>
         )}
 
-        {/* Header (Excel upload removed, live Google Sheets sync in place) */}
+        {/* Header with live sync status and Firebase badge */}
         <Header
-          lastUpdated={data.lastUpdated}
+          lastUpdated={lastUpdated}
           isFetching={isFetching}
-          source={data.source}
+          source={source}
           sheetUrl={sheetUrl}
-          errorMessage={data.errorMessage}
+          errorMessage={errorMessage}
           countdown={countdown}
           isAutoSyncEnabled={isAutoSyncEnabled}
-          onRefreshNow={() => fetchData(sheetUrl, true)}
+          onRefreshNow={() => fetchAndSyncToFirestore(sheetUrl, true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
-        {isLoading ? (
+        {isLoading && rows.length === 0 ? (
           <div className="py-24 text-center">
             <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
-            <p className="text-sm font-semibold text-slate-600">กำลังเชื่อมต่อและโหลดข้อมูลโครงการ...</p>
+            <p className="text-sm font-semibold text-slate-600">
+              กำลังเชื่อมต่อ Firebase Firestore ({firebaseProjectInfo.projectId})...
+            </p>
           </div>
         ) : (
           <>
             {/* KPI Stats Section */}
             <StatsSection
-              stats={data.stats}
+              stats={stats}
               selectedStatusFilter={statusFilter}
               onSelectStatusFilter={(filter) => {
                 setStatusFilter(filter);
@@ -253,7 +297,7 @@ export default function App() {
 
             {/* Office Interactive Floor Plan with Character Avatars */}
             <OfficeFloor
-              employees={data.employees}
+              employees={employees}
               selectedEmployeeName={selectedEmployeeName}
               onSelectEmployee={(name) => {
                 setSelectedEmployeeName(name);
@@ -262,7 +306,7 @@ export default function App() {
 
             {/* Detailed Project Table */}
             <ProjectTable
-              rows={data.rows}
+              rows={rows}
               selectedEmployeeName={selectedEmployeeName}
               statusFilter={statusFilter}
               searchQuery={searchQuery}
