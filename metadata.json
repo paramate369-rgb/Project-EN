@@ -1,0 +1,6 @@
+{
+  "name": "Office Project Dashboard",
+  "description": "แดชบอร์ดติดตามโครงการและทีมงานในออฟฟิศ พร้อมฟังก์ชันเชื่อมต่อ Google Sheets และอัปเดตข้อมูลแบบเรียลไทม์อัตโนมัติ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

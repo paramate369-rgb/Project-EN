@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Office Project Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --ink: #243247;
+      --muted: #738198;
+      --blue: #5277e8;
+      --bg: #f3f6fb;
+      --line: #e6ebf2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .app {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    .subtitle { margin: 0; color: var(--muted); }
+
+    .upload {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 16px;
+      color: white;
+      background: var(--blue);
+      border-radius: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 5px 14px #5277e833;
+      white-space: nowrap;
+    }
+
+    .upload:hover { background: #3f63d1; }
+    #fileInput { display: none; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      padding: 17px 20px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+    }
+
+    .stat-label { color: var(--muted); font-size: 13px; }
+    .stat-value { margin-top: 5px; font-size: 24px; font-weight: 800; }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    input[type="search"] {
+      width: min(360px, 100%);
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+      outline: none;
+    }
+
+    input[type="search"]:focus { border-color: var(--blue); }
+
+    .office {
+      min-height: 340px;
+      padding: 20px;
+      overflow: visible;
+      border: 1px solid #dbe4ec;
+      border-radius: 18px;
+      background:
+        linear-gradient(90deg, transparent 49.8%, #dce5ec 50%, transparent 50.2%),
+        linear-gradient(#ffffffb8, #ffffffb8),
+        repeating-linear-gradient(0deg, #eaf0f4 0 2px, transparent 2px 94px),
+        #f7fbfd;
+      box-shadow: 0 8px 25px #27364b0b;
+    }
+
+    .office-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .office-heading h2 { margin: 0; font-size: 17px; }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .people {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 18px;
+    }
+
+    .person {
+      position: relative;
+      min-height: 190px;
+      padding: 14px 10px;
+      text-align: center;
+      background: #ffffffd9;
+      border: 1px solid #e4eaf0;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: transform .18s, box-shadow .18s, border-color .18s;
+    }
+
+    .person:hover, .person.selected {
+      z-index: 2;
+      transform: translateY(-4px);
+      border-color: #a9bbff;
+      box-shadow: 0 10px 22px #526fbd24;
+    }
+
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 78px;
+      height: 78px;
+      margin: 0 auto 8px;
+      border-radius: 50%;
+      background: var(--avatar-bg, #e8edff);
+      font-size: 48px;
+    }
+
+    .person-name { font-weight: 800; }
+    .person-role { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .project-count {
+      display: inline-block;
+      margin-top: 9px;
+      padding: 4px 9px;
+      color: #435fc1;
+      background: #edf1ff;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .hover-card {
+      position: absolute;
+      z-index: 5;
+      top: calc(100% - 2px);
+      left: 50%;
+      width: min(280px, 85vw);
+      padding: 12px;
+      text-align: left;
+      background: #26354d;
+      color: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 24px #101a2e38;
+      opacity: 0;
+      visibility: hidden;
+      transform: translate(-50%, 7px);
+      transition: .16s;
+      pointer-events: none;
+    }
+
+    .person:hover .hover-card {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, 0);
+    }
+
+    .hover-title { margin-bottom: 7px; font-size: 12px; font-weight: 800; }
+    .hover-project { padding: 7px 0; border-top: 1px solid #ffffff25; font-size: 12px; }
+    .hover-price { color: #b9ceff; font-weight: 700; }
+
+    .details {
+      margin-top: 18px;
+      padding: 20px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    .details h2 { margin: 0 0 4px; font-size: 18px; }
+    .details-sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 540px; }
+    th, td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 13px;
+    }
+    th { color: var(--muted); font-weight: 700; }
+    td.price { text-align: right; font-weight: 700; }
+    th:last-child { text-align: right; }
+
+    .empty {
+      grid-column: 1 / -1;
+      padding: 45px 15px;
+      color: var(--muted);
+      text-align: center;
+      background: #ffffffb8;
+      border-radius: 14px;
+    }
+
+    .message { min-height: 20px; margin: -6px 0 12px; color: #a24d36; font-size: 13px; }
+
+    @media (max-width: 700px) {
+      .app { padding: 18px 14px; }
+      header { align-items: flex-start; flex-direction: column; }
+      h1 { font-size: 23px; }
+      .stats { grid-template-columns: 1fr; gap: 9px; }
+      .stat { padding: 12px 15px; }
+      .stat-value { font-size: 21px; }
+      .office { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>Office Project Dashboard</h1>
+        <p class="subtitle">ภาพรวมทีมและโครงการที่แต่ละคนรับผิดชอบ</p>
+      </div>
+      <label class="upload" for="fileInput">เลือกไฟล์ Excel</label>
+      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv">
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-label">พนักงาน</div>
+        <div class="stat-value" id="employeeStat">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">โครงการ</div>
+        <div class="stat-value" id="projectStat">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">มูลค่าโครงการรวม</div>
+        <div class="stat-value" id="valueStat">฿0</div>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="ค้นหาชื่อพนักงาน...">
+    </div>
+    <div class="message" id="message"></div>
+
+    <section class="office">
+      <div class="office-heading">
+        <h2>ทีมงานในออฟฟิศ</h2>
+        <span class="hint">ชี้เมาส์หรือคลิกที่ตัวละครเพื่อดูโครงการ</span>
+      </div>
+      <div class="people" id="people"></div>
+    </section>
+
+    <section class="details" id="details">
+      <h2 id="detailsTitle">รายละเอียดโครงการ</h2>
+      <p class="details-sub" id="detailsSub">เลือกพนักงานเพื่อดูรายการโครงการ</p>
+      <div class="table-wrap" id="detailsTable"></div>
+    </section>
+  </main>
+
+  <script>
+    const sampleData = [
+      { EmployeeID: "E001", ชื่อ: "มิน", ตำแหน่ง: "ฝ่ายขาย", ชื่อโครงการ: "เว็บไซต์บริษัท ABC", ยอดราคา: 85000, สถานะ: "กำลังดำเนินการ" },
+      { EmployeeID: "E001", ชื่อ: "มิน", ตำแหน่ง: "ฝ่ายขาย", ชื่อโครงการ: "ระบบสมาชิก", ยอดราคา: 42000, สถานะ: "เสนอราคา" },
+      { EmployeeID: "E002", ชื่อ: "ต้น", ตำแหน่ง: "นักออกแบบ", ชื่อโครงการ: "เว็บไซต์บริษัท ABC", ยอดราคา: 85000, สถานะ: "กำลังดำเนินการ" },
+      { EmployeeID: "E003", ชื่อ: "ฟ้า", ตำแหน่ง: "นักพัฒนา", ชื่อโครงการ: "แอปจัดการสต็อก", ยอดราคา: 120000, สถานะ: "กำลังดำเนินการ" },
+      { EmployeeID: "E004", ชื่อ: "นนท์", ตำแหน่ง: "ผู้จัดการโครงการ", ชื่อโครงการ: "ระบบสมาชิก", ยอดราคา: 42000, สถานะ: "เสนอราคา" }
+    ];
+
+    const avatars = ["👩🏻‍💼", "👩🏼‍💻", "👩🏼‍💻", "🧑🏻‍💼", "", "🧑🏻‍💼", "🧑🏻‍💼", "👩🏽‍💼"];
+    const avatarColors = ["#e7edff", "#ffeedd", "#e4f6ed", "#fce8f0", "#e8f5fb"];
+    let rows = sampleData;
+    let selectedEmployee = null;
+
+    const peopleEl = document.getElementById("people");
+    const searchEl = document.getElementById("searchInput");
+
+    function keyOf(obj, candidates) {
+      const entries = Object.keys(obj);
+      for (const candidate of candidates) {
+        const found = entries.find(k => k.trim().toLowerCase() === candidate.toLowerCase());
+        if (found) return obj[found];
+      }
+      return "";
+    }
+
+    function cleanRows(input) {
+      return input
+        .filter(row => row && Object.values(row).some(v => String(v ?? "").trim() !== ""))
+        .map((row, index) => ({
+          id: String(keyOf(row, ["EmployeeID", "รหัสพนักงาน", "รหัส"]) || `E${index + 1}`).trim(),
+          name: String(keyOf(row, ["ชื่อ", "ชื่อพนักงาน", "EmployeeName", "Name"]) || "ไม่ระบุชื่อ").trim(),
+          role: String(keyOf(row, ["ตำแหน่ง", "Position", "Role"]) || "พนักงาน").trim(),
+          project: String(keyOf(row, ["ชื่อโครงการ", "โครงการ", "Project", "ProjectName"]) || "ไม่ระบุโครงการ").trim(),
+          price: parsePrice(keyOf(row, ["ยอดราคา", "ราคา", "มูลค่า", "Price", "Amount"])),
+          status: String(keyOf(row, ["สถานะ", "Status"]) || "ไม่ระบุสถานะ").trim()
+        }));
+    }
+
+    function parsePrice(value) {
+      if (typeof value === "number") return value;
+      return Number(String(value ?? "").replace(/[฿,$,\s]/g, "").replace(/,/g, "")) || 0;
+    }
+
+    function money(value) {
+      return new Intl.NumberFormat("th-TH", {
+        style: "currency", currency: "THB", maximumFractionDigits: 0
+      }).format(value || 0);
+    }
+
+    function groupEmployees() {
+      const map = new Map();
+      rows.forEach(row => {
+        if (!map.has(row.id)) {
+          map.set(row.id, { id: row.id, name: row.name, role: row.role, projects: [] });
+        }
+        map.get(row.id).projects.push(row);
+      });
+      return [...map.values()];
+    }
+
+    function render() {
+      const query = searchEl.value.trim().toLowerCase();
+      const employees = groupEmployees();
+      const filtered = employees.filter(person =>
+        `${person.name} ${person.role} ${person.id}`.toLowerCase().includes(query)
+      );
+
+      peopleEl.innerHTML = filtered.length ? filtered.map((person, index) => {
+        const isSelected = selectedEmployee === person.id;
+        const projectLines = person.projects.map(p =>
+          `<div class="hover-project">
+            <strong>${escapeHtml(p.project)}</strong><br>
+            <span class="hover-price">${money(p.price)}</span> · ${escapeHtml(p.status)}
+          </div>`
+        ).join("");
+
+        return `<article class="person ${isSelected ? "selected" : ""}"
+          data-id="${escapeHtml(person.id)}" tabindex="0" role="button"
+          aria-label="ดูโครงการของ ${escapeHtml(person.name)}">
+          <div class="avatar" style="--avatar-bg:${avatarColors[index % avatarColors.length]}">
+            ${avatars[index % avatars.length]}
+          </div>
+          <div class="person-name">${escapeHtml(person.name)}</div>
+          <div class="person-role">${escapeHtml(person.role)}</div>
+          <span class="project-count">${person.projects.length} โครงการ</span>
+          <div class="hover-card">
+            <div class="hover-title">โครงการที่รับผิดชอบ</div>
+            ${projectLines || "ยังไม่มีข้อมูลโครงการ"}
+          </div>
+        </article>`;
+      }).join("") : `<div class="empty">ไม่พบพนักงาน ลองค้นหาด้วยชื่ออื่น</div>`;
+
+      document.getElementById("employeeStat").textContent = employees.length;
+
+      // นับและรวมมูลค่าโครงการไม่ซ้ำ โดยใช้ชื่อโครงการเป็นตัวระบุ
+      const uniqueProjects = new Map();
+      rows.forEach(row => {
+        if (!uniqueProjects.has(row.project)) uniqueProjects.set(row.project, row.price);
+      });
+      document.getElementById("projectStat").textContent = uniqueProjects.size;
+      document.getElementById("valueStat").textContent =
+        money([...uniqueProjects.values()].reduce((sum, price) => sum + price, 0));
+
+      peopleEl.querySelectorAll(".person").forEach(card => {
+        card.addEventListener("click", () => selectEmployee(card.dataset.id));
+        card.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectEmployee(card.dataset.id);
+          }
+        });
+      });
+
+      if (selectedEmployee && employees.some(person => person.id === selectedEmployee)) {
+        showDetails(selectedEmployee);
+      }
+    }
+
+    function selectEmployee(id) {
+      selectedEmployee = id;
+      render();
+      showDetails(id);
+    }
+
+    function showDetails(id) {
+      const person = groupEmployees().find(p => p.id === id);
+      if (!person) return;
+
+      document.getElementById("detailsTitle").textContent =
+        `โครงการของ ${person.name}`;
+      document.getElementById("detailsSub").textContent =
+        `${person.role} · ${person.projects.length} โครงการ`;
+
+      document.getElementById("detailsTable").innerHTML = `
+        <table>
+          <thead><tr>
+            <th>ชื่อโครงการ</th><th>สถานะ</th><th style="text-align:right">ยอดราคา</th>
+          </tr></thead>
+          <tbody>
+            ${person.projects.map(p => `<tr>
+              <td>${escapeHtml(p.project)}</td>
+              <td>${escapeHtml(p.status)}</td>
+              <td class="price">${money(p.price)}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+
+    searchEl.addEventListener("input", render);
+
+    document.getElementById("fileInput").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const parsed = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        rows = cleanRows(parsed);
+        selectedEmployee = null;
+        document.getElementById("message").textContent =
+          rows.length ? `โหลดข้อมูลจาก ${file.name} แล้ว` : "ไม่พบข้อมูลในชีตแรกของไฟล์";
+        document.getElementById("detailsTitle").textContent = "รายละเอียดโครงการ";
+        document.getElementById("detailsSub").textContent = "เลือกพนักงานเพื่อดูรายการโครงการ";
+        document.getElementById("detailsTable").innerHTML = "";
+        render();
+      } catch (error) {
+        document.getElementById("message").textContent =
+          "อ่านไฟล์ไม่สำเร็จ โปรดตรวจสอบว่าเป็นไฟล์ Excel หรือ CSV ที่ถูกต้อง";
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
