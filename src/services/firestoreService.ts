@@ -20,9 +20,7 @@ export interface FirebaseSettingData {
 
 // Generate a deterministic and clean document ID
 function generateDocId(name: string, project: string, index: number): string {
-  const cleanName = name.replace(/[^a-zA-Z0-9ก-๙]/g, '').slice(0, 20) || 'user';
-  const cleanProj = project.replace(/[^a-zA-Z0-9ก-๙]/g, '').slice(0, 30) || 'proj';
-  return `p_${cleanName}_${cleanProj}_${index + 1}`.slice(0, 64);
+  return `proj_${String(index + 1).padStart(2, '0')}`;
 }
 
 /**

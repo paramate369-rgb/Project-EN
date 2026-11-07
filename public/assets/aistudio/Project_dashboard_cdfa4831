@@ -1,0 +1,14 @@
+EmployeeID,ชื่อพนักงาน,ตำแหน่ง,ชื่อโครงการ,ยอดราคา,สถานะ
+E001,P'Sith,ผู้จัดการ,CUGM CRTT,"฿5,000,000.00",กำลังดำเนินการ
+E002,Top,Project Engineer,KTC,"฿250,000.00",เสร็จ
+,Top,Project Engineer,การบินไทย AP,"฿170,000.00",กำลังดำเนินการ
+,Top,Project Engineer,Toyota อับดุล,"฿1,454,040.00",เสร็จ
+,Top,Project Engineer,ซีคอน,"฿25,800.00",เสร็จ
+E003,Nu,Project Engineer,KAT,"฿500,000.00",กำลังดำเนินการ
+,Nu,Project Engineer,มาริลี่,"฿500,000.00",กำลังดำเนินการ
+,Nu,Project Engineer,โกเบลโก้,"฿500,000.00",กำลังดำเนินการ
+E004,Benz,Project Engineer,D.I.Y,"฿500,000.00",กำลังดำเนินการ
+E005,Kosol,Project Engineer,ฤทธา office,"฿689,785.00",เสนอราคา
+,Kosol,Project Engineer,ฤทธา AP,"฿308,120.00",เสนอราคา
+,Kosol,Project Engineer,GEM แกลอรี่,"฿200,000.00",เสนอราคา
+,Kosol,Project Engineer,BankX,"฿65,000.00",เสนอราคา

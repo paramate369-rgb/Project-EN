@@ -8,21 +8,23 @@ import Papa from 'papaparse';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const LOCAL_CSV_PATH = path.resolve(__dirname, 'public/assets/aistudio/Project_dashboard_d068ee24');
+const LOCAL_CSV_PATH = path.resolve(__dirname, 'public/assets/aistudio/Project_dashboard_cdfa4831');
 
 // Default initial raw CSV data from the user attachment
 const DEFAULT_CSV_FALLBACK = `EmployeeID,ชื่อพนักงาน,ตำแหน่ง,ชื่อโครงการ,ยอดราคา,สถานะ
-E001,Sith,ผู้จัดการ,CAT,"฿500,000.00",กำลังดำเนินการ
+E001,P'Sith,ผู้จัดการ,CUGM CRTT,"฿5,000,000.00",กำลังดำเนินการ
 E002,Top,Project Engineer,KTC,"฿250,000.00",เสร็จ
-,Top,Project Engineer,การบินไทย,"฿250,000.00",เสนอราคา
-,Top,Project Engineer,Toyota อับดุล,"฿250,000.00",เสร็จ
+,Top,Project Engineer,การบินไทย AP,"฿170,000.00",กำลังดำเนินการ
+,Top,Project Engineer,Toyota อับดุล,"฿1,454,040.00",เสร็จ
+,Top,Project Engineer,ซีคอน,"฿25,800.00",เสร็จ
 E003,Nu,Project Engineer,KAT,"฿500,000.00",กำลังดำเนินการ
 ,Nu,Project Engineer,มาริลี่,"฿500,000.00",กำลังดำเนินการ
 ,Nu,Project Engineer,โกเบลโก้,"฿500,000.00",กำลังดำเนินการ
 E004,Benz,Project Engineer,D.I.Y,"฿500,000.00",กำลังดำเนินการ
-E005,Chanapat,Project Engineer,ฤทธา,"฿200,000.00",เสนอราคา
-,Chanapat,Project Engineer,GEM แกลอรี่,"฿200,000.00",เสนอราคา
-,Chanapat,Project Engineer,BankX,"฿100,000.00",เสนอราคา`;
+E005,Kosol,Project Engineer,ฤทธา office,"฿689,785.00",เสนอราคา
+,Kosol,Project Engineer,ฤทธา AP,"฿308,120.00",เสนอราคา
+,Kosol,Project Engineer,GEM แกลอรี่,"฿200,000.00",เสนอราคา
+,Kosol,Project Engineer,BankX,"฿65,000.00",เสนอราคา`;
 
 let activeSheetUrl: string = process.env.GOOGLE_SHEET_URL || '';
 let syncIntervalSeconds: number = 15;
